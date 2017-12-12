@@ -107,6 +107,11 @@ int main() {
           Eigen::VectorXd yvals = Eigen::VectorXd::Map(ptsy.data(), ptsy.size());
           auto coeffs = polyfit(xvals, yvals, 3);
 
+          // calculate offset (cross track error) and heading delta (orientation error)
+          auto cte = -polyeval(coeffs, 0);
+          auto oe = -atan(coeffs[1]);
+          cout << "Errors: cte=" << cte << " oe=" << oe << std::endl;
+
           /*
           * TODO: Calculate steering angle and throttle using MPC.
           *
