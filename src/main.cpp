@@ -117,9 +117,9 @@ int main() {
           state << 0, 0, 0, v, cte, oe;
 
           // Use MPC to calculate steering and throttle
-          auto controls = mpc.Solve(state, coeffs);
-          const double steer_value = controls[0];
-          const double throttle_value = controls[1];
+          auto output = mpc.Solve(state, coeffs);
+          const double steer_value = output[0];
+          const double throttle_value = output[1];
 
           json msgJson;
           // NOTE: Remember to divide by deg2rad(25) before you send the steering value back.
@@ -130,6 +130,13 @@ int main() {
           //Display the MPC predicted trajectory 
           vector<double> mpc_x_vals;
           vector<double> mpc_y_vals;
+          for (size_t i = 2; i < output.size(); ++i) {
+              if (i % 2)
+                  mpc_y_vals.push_back(output[i]);
+              else
+                  mpc_x_vals.push_back(output[i]);
+          }
+
           msgJson["mpc_x"] = mpc_x_vals;
           msgJson["mpc_y"] = mpc_y_vals;
 
