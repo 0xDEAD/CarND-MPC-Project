@@ -21,7 +21,7 @@ double dt = 0.1;
 // This is the length from front to CoG that has a similar radius.
 const double Lf = 2.67;
 
-double ref_v = 50;
+double ref_v = 80;
 
 // define positions in the "vars"-array
 // the array is used like a 2D-array, for every state-variable there is a row, where the
@@ -44,10 +44,76 @@ class FG_eval {
 
   typedef CPPAD_TESTVECTOR(AD<double>) ADvector;
   void operator()(ADvector& fg, const ADvector& vars) {
-    // TODO: implement MPC
-    // `fg` a vector of the cost constraints, `vars` is a vector of variable values (state & actuators)
-    // NOTE: You'll probably go back and forth between this function and
-    // the Solver function below.
+    // The cost is stored is the first element of `fg`. Start without any bias.
+    fg[0] = 0;
+
+    // cost for the current errors (cross track, heading, delte to reference speed)
+    for (size_t i = 0; i < N; i++) {
+      fg[0] += 2500 * CppAD::pow(vars[cte_start + i], 2);
+      fg[0] += 2500 * CppAD::pow(vars[epsi_start + i], 2);
+      fg[0] += CppAD::pow(vars[v_start + i] - ref_v, 2);
+    }
+
+    // "cost" for the actuators
+    for (size_t i = 0; i < N - 1; i++) {
+      fg[0] += 5 * CppAD::pow(vars[delta_start + i], 2);
+      fg[0] += 5 * CppAD::pow(vars[a_start + i], 2);
+      // penalty for combination of steering angle and speed
+      fg[0] += 700 * CppAD::pow(vars[delta_start + i] * vars[v_start+i], 2);
+    }
+
+    // "cost" for the deltas of actuators
+    for (size_t i = 0; i < N - 2; i++) {
+      fg[0] += 200 * CppAD::pow(vars[delta_start + i + 1] - vars[delta_start + i], 2);
+      fg[0] += 10 * CppAD::pow(vars[a_start + i + 1] - vars[a_start + i], 2);
+    }
+
+    // Setup Constraints
+
+    // Initial constraints
+    //
+    // We add 1 to each of the starting indices due to cost being located at
+    // index 0 of `fg`.
+    // This bumps up the position of all the other values.
+    fg[1 + x_start] = vars[x_start];
+    fg[1 + y_start] = vars[y_start];
+    fg[1 + psi_start] = vars[psi_start];
+    fg[1 + v_start] = vars[v_start];
+    fg[1 + cte_start] = vars[cte_start];
+    fg[1 + epsi_start] = vars[epsi_start];
+
+    // The rest of the constraints
+    for (size_t t = 1; t < N; t++) {
+      AD<double> x1 = vars[x_start + t];
+      AD<double> x0 = vars[x_start + t - 1];
+      AD<double> y1 = vars[y_start + t];
+      AD<double> y0 = vars[y_start + t - 1];
+      AD<double> psi1 = vars[psi_start + t];
+      AD<double> psi0 = vars[psi_start + t - 1];
+      AD<double> v1 = vars[v_start + t];
+      AD<double> v0 = vars[v_start + t - 1];
+      AD<double> cte1 = vars[cte_start + t];
+      AD<double> epsi1 = vars[epsi_start + t];
+      AD<double> epsi0 = vars[epsi_start + t - 1];
+      AD<double> a = vars[a_start + t - 1];
+      AD<double> delta = vars[delta_start + t - 1];
+
+      // shift actuations to introduce the system latency
+      if (t > 1) {
+        a = vars[a_start + t - 2];
+        delta = vars[delta_start + t - 2];
+      }
+      AD<double> f0 = coeffs[0] + coeffs[1] * x0 + coeffs[2] * CppAD::pow(x0, 2) + coeffs[3] * CppAD::pow(x0, 3);
+      AD<double> psides0 = CppAD::atan(coeffs[1] + 2 * coeffs[2] * x0 + 3 * coeffs[3] * CppAD::pow(x0, 2));
+
+      // setup rest of the model constraints
+      fg[1 + x_start + t] = x1 - (x0 + v0 * CppAD::cos(psi0) * dt);
+      fg[1 + y_start + t] = y1 - (y0 + v0 * CppAD::sin(psi0) * dt);
+      fg[1 + psi_start + t] = psi1 - (psi0 - v0/Lf * delta * dt);
+      fg[1 + v_start + t] = v1 - (v0 + a * dt);
+      fg[1 + cte_start + t] = cte1 - ((f0 - y0) + (v0 * CppAD::sin(epsi0) * dt));
+      fg[1 + epsi_start + t] = epsi1 - ((psi0 - psides0) - v0/Lf * delta * dt);
+    }
   }
 };
 
