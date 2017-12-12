@@ -102,6 +102,11 @@ int main() {
               ptsy[i] = -dx * sinpsi + dy * cospsi;
           }
 
+          // fit a polynom to the waypoints
+          Eigen::VectorXd xvals = Eigen::VectorXd::Map(ptsx.data(), ptsx.size());
+          Eigen::VectorXd yvals = Eigen::VectorXd::Map(ptsy.data(), ptsy.size());
+          auto coeffs = polyfit(xvals, yvals, 3);
+
           /*
           * TODO: Calculate steering angle and throttle using MPC.
           *
