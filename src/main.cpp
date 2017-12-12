@@ -112,14 +112,14 @@ int main() {
           auto oe = -atan(coeffs[1]);
           cout << "Errors: cte=" << cte << " oe=" << oe << std::endl;
 
-          /*
-          * TODO: Calculate steering angle and throttle using MPC.
-          *
-          * Both are in between [-1, 1].
-          *
-          */
-          double steer_value = 0;
-          double throttle_value = 0.5;
+          // Create state vector - waypoints in car's coordinates -> no x=y=psi=0
+          Eigen::VectorXd state(6);
+          state << 0, 0, 0, v, cte, oe;
+
+          // Use MPC to calculate steering and throttle
+          auto controls = mpc.Solve(state, coeffs);
+          const double steer_value = controls[0];
+          const double throttle_value = controls[1];
 
           json msgJson;
           // NOTE: Remember to divide by deg2rad(25) before you send the steering value back.
